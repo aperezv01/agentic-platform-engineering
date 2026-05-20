@@ -57,13 +57,25 @@ jobs:
           PROMPT=$(envsubst < .github/prompts/parse-cluster-info.md)
           
           # Run Copilot and capture output
+          echo "=== Copilot CLI version ==="
+          copilot --version || echo "version check failed"
+          echo "=== Running Copilot ==="
+          set +e
           COPILOT_OUTPUT=$(copilot -p "$PROMPT" \
             --agent "cluster-doctor" \
             --additional-mcp-config @'.copilot/mcp-config.json' \
             --allow-all-tools 2>&1)
-          
-          echo "Copilot output:"
+          COPILOT_EXIT=$?
+          set -e
+          echo "=== Copilot exit code: $COPILOT_EXIT ==="
+          echo "=== Copilot output ==="
           echo "$COPILOT_OUTPUT"
+          echo "=== End Copilot output ==="
+          if [ $COPILOT_EXIT -ne 0 ]; then
+            echo "Copilot CLI failed with exit code $COPILOT_EXIT"
+            exit 1
+          fi
+
           
           # Extract RESOURCE_GROUP and CLUSTER_NAME from Copilot output
           RESOURCE_GROUP=$(echo "$COPILOT_OUTPUT" | grep -oP 'RESOURCE_GROUP=\K[^\s]+' | head -1)

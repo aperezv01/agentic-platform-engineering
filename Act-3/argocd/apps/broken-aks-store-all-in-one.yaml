@@ -34,9 +34,9 @@ spec:
                 - mongo
                 - "--eval"
                 - db.runCommand('ping').ok
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 10
             failureThreshold: 3
           readinessProbe:
             exec:
@@ -44,9 +44,9 @@ spec:
                 - mongo
                 - "--eval"
                 - db.runCommand('ping').ok
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            timeoutSeconds: 5
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
             failureThreshold: 3
 ---
 apiVersion: v1

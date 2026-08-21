@@ -41,6 +41,28 @@ jobs:
           echo "Installed Copilot CLI version:"
           copilot --version
 
+      # AKS-MCP is stdio-only: it must be launched as a local subprocess by the
+      # MCP client (Copilot CLI). HTTP/SSE transports and in-cluster deployment
+      # are explicitly unsupported upstream, so the binary lives on the runner.
+      - name: Install AKS MCP server
+        run: |
+          curl -sSL https://github.com/Azure/aks-mcp/releases/latest/download/aks-mcp-linux-amd64 -o "$RUNNER_TEMP/aks-mcp"
+          chmod +x "$RUNNER_TEMP/aks-mcp"
+          sudo mv "$RUNNER_TEMP/aks-mcp" /usr/local/bin/aks-mcp
+          echo "aks-mcp installed at $(command -v aks-mcp)"
+
+      # Azure login runs before the first Copilot invocation so that the
+      # aks-mcp subprocess inherits an authenticated az session.
+      - name: Azure CLI Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure Login
+        run: az account show --output table
+
       - name: Parse cluster info from issue body
         id: cluster-info
         env:
@@ -99,18 +121,6 @@ jobs:
           echo "CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_OUTPUT
           echo "Extracted from issue: RG=$RESOURCE_GROUP, Cluster=$CLUSTER_NAME"
 
-      - name: Azure CLI Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.ARM_CLIENT_ID }}
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-
-      - name: Verify Azure Login
-        run: |
-          echo "Verifying Azure authentication..."
-          az account show
-      
       - name: Get AKS Credentials
         run: |
           echo "Fetching kubeconfig for cluster ${{ steps.cluster-info.outputs.CLUSTER_NAME }}..."
@@ -120,8 +130,6 @@ jobs:
             --overwrite-existing
           echo "Kubeconfig fetched successfully!"
           kubectl cluster-info
-          kubectl port-forward -n aks-mcp svc/aks-mcp 8000:8000 &
-          sleep 3  # Wait for port-forward to establish
 
       
       

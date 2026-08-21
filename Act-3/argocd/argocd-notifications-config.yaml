@@ -4,9 +4,12 @@ metadata:
   name: argocd-notifications-cm
   namespace: argocd
 data:
-  # GitHub webhook service configuration
+  context: |
+    clusterName: aks-ape-demo
+    resourceGroup: rg-ape-demo
+
   service.webhook.github-webhook: |
-    url: https://api.github.com/repos/DevExpGbb/agentic-platform-engineering/dispatches
+    url: https://api.github.com/repos/aperezv01/agentic-platform-engineering/dispatches
     headers:
     - name: Accept
       value: application/vnd.github+json
@@ -17,19 +20,16 @@ data:
     - name: Content-Type
       value: application/json
 
-  # Trigger on sync failures
   trigger.on-sync-failed: |
     - when: app.status.operationState.phase in ['Error', 'Failed']
       send: [sync-failed-webhook]
     - when: app.status.conditions != nil && app.status.conditions[0].type == 'ComparisonError'
       send: [sync-failed-webhook]
 
-  # Trigger on degraded health
   trigger.on-health-degraded: |
     - when: app.status.health.status == 'Degraded'
       send: [sync-failed-webhook]
 
-  # Template for the webhook payload
   template.sync-failed-webhook: |
     webhook:
       github-webhook:
@@ -40,6 +40,9 @@ data:
             "client_payload": {
               "app_name": "{{.app.metadata.name}}",
               "app_namespace": "{{.app.metadata.namespace}}",
+              "cluster": "{{.context.clusterName}}",
+              "resource_group": "{{.context.resourceGroup}}",
+              "namespace": "{{.app.spec.destination.namespace}}",
               "sync_status": "{{.app.status.sync.status}}",
               "health_status": "{{.app.status.health.status}}",
               "operation_phase": "{{.app.status.operationState.phase}}",
@@ -47,6 +50,7 @@ data:
               "revision": "{{.app.status.sync.revision}}",
               "repo_url": "{{.app.spec.source.repoURL}}",
               "target_revision": "{{.app.spec.source.targetRevision}}",
-              "timestamp": "{{.app.status.operationState.finishedAt}}"
+              "timestamp": "{{.app.status.operationState.finishedAt}}",
+              "resources": {{toJson .app.status.resources}}
             }
           }

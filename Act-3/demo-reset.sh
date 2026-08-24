@@ -49,6 +49,27 @@ set_image() {
   return 0
 }
 
+# Argo polls git every ~3 minutes; this annotation forces an immediate
+# comparison so the script does not wait out the polling interval.
+refresh() {
+  kubectl --context "$CONTEXT" patch app "$APP" -n argocd --type merge \
+    -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"normal"}}}' >/dev/null 2>&1 || true
+}
+
+wait_for_health() {
+  local want="$1" label="$2" tries="${3:-60}" health
+  log "waiting for ArgoCD to report $want ($label)"
+  for _ in $(seq 1 "$tries"); do
+    refresh
+    health=$(kubectl --context "$CONTEXT" get app "$APP" -n argocd \
+             -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+    [ "$health" = "$want" ] && { ok "app is $want"; return 0; }
+    sleep 5
+  done
+  warn "app never reached $want (last status: ${health:-unknown})"
+  return 1
+}
+
 heal() {
   log "restoring the correct image reference"
   set_image "$BAD" "$GOOD" "demo: restore order-service image after rehearsal" || true
@@ -74,19 +95,6 @@ close_leftovers() {
       && ok "closed issue #$i" || warn "could not close issue #$i"
   done
   [ -z "$issues" ] && ok "no leftover issues"
-}
-
-wait_for_degraded() {
-  log "waiting for ArgoCD to report Degraded (up to 5 min)"
-  local health
-  for _ in $(seq 1 60); do
-    health=$(kubectl --context "$CONTEXT" get app "$APP" -n argocd \
-             -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
-    [ "$health" = "Degraded" ] && { ok "app is Degraded"; return 0; }
-    sleep 5
-  done
-  warn "app never reached Degraded (last status: ${health:-unknown})"
-  return 1
 }
 
 wait_for_issue() {
@@ -125,10 +133,15 @@ case "${1:-}" in
     ;;
   *)
     git pull -q --rebase origin main
-    heal >/dev/null 2>&1 || true
+    # The notifications controller dedupes on an annotation keyed by the alert
+    # condition, so an app that is already Degraded will not fire again. Drive
+    # it back to Healthy and wait for Argo to observe that before re-breaking,
+    # otherwise the reset silently produces no issue.
+    heal
+    wait_for_health Healthy "clearing the previous alert" || true
     close_leftovers
     set_image "$GOOD" "$BAD" "demo: re-introduce order-service typo for keynote rehearsal" || true
-    wait_for_degraded || true
+    wait_for_health Degraded "seeded failure detected" || true
     wait_for_issue || true
     wait_for_pr || true
     echo

@@ -5,7 +5,11 @@ name: Trigger Cluster Doctor
 on:
   workflow_dispatch:
   issues:
-    types: [labeled]
+    # `labeled` fires when a human adds the label to an existing issue.
+    # `opened` covers the automated path, where argocd-deployment-failure.yml
+    # creates the issue with the cluster-doctor label already applied — GitHub
+    # does not emit a separate `labeled` event for labels set at creation time.
+    types: [opened, labeled]
 
 env:
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -20,7 +24,11 @@ permissions:
 
 jobs:
   run-cluster-doctor:
-    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'cluster-doctor'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'cluster-doctor' ||
+      (github.event.action == 'opened' &&
+       contains(join(github.event.issue.labels.*.name, ','), 'cluster-doctor'))
     environment: demo
     runs-on: ubuntu-latest
     permissions:

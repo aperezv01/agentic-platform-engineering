@@ -95,6 +95,10 @@ close_leftovers() {
       && ok "closed issue #$i" || warn "could not close issue #$i"
   done
   [ -z "$issues" ] && ok "no leftover issues"
+
+  # An unterminated `[ ... ] && ...` above would make this function return 1
+  # when leftovers *were* found, which set -e turns into an early exit.
+  return 0
 }
 
 wait_for_issue() {

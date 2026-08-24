@@ -181,6 +181,10 @@ metadata:
   name: order-service
 spec:
   replicas: 1
+  # Kubernetes defaults to 600s before a stalled rollout is reported as failed,
+  # which delays the Degraded signal (and the agent pipeline) by ten minutes.
+  # 60s is enough for a real image pull to fail and keeps the demo responsive.
+  progressDeadlineSeconds: 60
   selector:
     matchLabels:
       app: order-service

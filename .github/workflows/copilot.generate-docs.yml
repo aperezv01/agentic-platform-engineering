@@ -4,15 +4,17 @@ name: Generate Documentation with Copilot
 
 on:
   workflow_dispatch:
-  push:
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - '.github/**'
+  # Push-triggered runs are disabled: this workflow is not part of the Act-3
+  # demo, but it burns a premium request on every commit and clutters the
+  # Actions tab that gets shown on stage. Trigger it manually when needed.
 
 jobs:
   generate-docs:
     runs-on: ubuntu-latest
+    # COPILOT_CLI_TOKEN lives in the demo environment; without this the secret
+    # resolves to an empty string and the Copilot CLI exits with
+    # "No authentication information found".
+    environment: demo
     permissions:
       contents: read    # Required to read repository content and commit diffs
       issues: write     # Required to create GitHub issues for documentation recommendations

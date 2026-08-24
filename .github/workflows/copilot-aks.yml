@@ -10,8 +10,10 @@ on:
         description: 'AKS Cluster Name'
         required: true
         default: 'aks-eastus2'
-  issues:
-    types: [labeled]
+  # The issues trigger is disabled: this workflow is an alternate take on the
+  # same demo and its guard (labels starting with 'cluster/') never matches the
+  # 'cluster-doctor' label, so every label event started a run that immediately
+  # skipped — noise in the Actions tab shown on stage. Run it manually instead.
 
 env:
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}

@@ -69,9 +69,11 @@ ISSUE=$(gh issue list -R "$REPO" --state open --label argocd-deployment-failure 
         --json number --jq '.[0].number' 2>/dev/null)
 if [ -n "$ISSUE" ] && [ "$ISSUE" != "null" ]; then
   pass "open failure issue: #$ISSUE"
+  # gh prints an empty string for a null --jq result, so test a boolean the
+  # filter always emits rather than comparing against the literal "null".
   HAS_LABEL=$(gh issue view "$ISSUE" -R "$REPO" --json labels \
-              --jq '[.labels[].name] | index("cluster-doctor")' 2>/dev/null)
-  if [ "$HAS_LABEL" = "null" ]; then
+              --jq '[.labels[].name] | any(. == "cluster-doctor")' 2>/dev/null)
+  if [ "$HAS_LABEL" = "false" ]; then
     pass "cluster-doctor label is not applied yet (apply it on stage)"
   else
     fail "issue #$ISSUE already carries the cluster-doctor label — remove it so the on-stage click is a single action"

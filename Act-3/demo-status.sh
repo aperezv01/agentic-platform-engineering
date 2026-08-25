@@ -60,20 +60,37 @@ else
 fi
 
 head_ "GitHub"
-ISSUE=$(gh issue list -R "$REPO" --state open --label cluster-doctor --json number --jq '.[0].number' 2>/dev/null)
+# The pre-demo state is an issue the pipeline filed on its own, *without* the
+# cluster-doctor label. GitHub does not start a workflow from an event raised
+# with GITHUB_TOKEN, so the label the handler applies at creation time never
+# triggers the agent. Applying it by hand on stage is what starts the run, and
+# staging the issue without it keeps that a single click.
+ISSUE=$(gh issue list -R "$REPO" --state open --label argocd-deployment-failure \
+        --json number --jq '.[0].number' 2>/dev/null)
 if [ -n "$ISSUE" ] && [ "$ISSUE" != "null" ]; then
-  pass "open cluster-doctor issue: #$ISSUE"
+  pass "open failure issue: #$ISSUE"
+  HAS_LABEL=$(gh issue view "$ISSUE" -R "$REPO" --json labels \
+              --jq '[.labels[].name] | index("cluster-doctor")' 2>/dev/null)
+  if [ "$HAS_LABEL" = "null" ]; then
+    pass "cluster-doctor label is not applied yet (apply it on stage)"
+  else
+    fail "issue #$ISSUE already carries the cluster-doctor label — remove it so the on-stage click is a single action"
+  fi
+  COMMENTS=$(gh issue view "$ISSUE" -R "$REPO" --json comments --jq '.comments | length' 2>/dev/null)
+  if [ "${COMMENTS:-0}" -eq 0 ]; then
+    pass "issue has no stray comments"
+  else
+    warn "issue #$ISSUE has ${COMMENTS} comment(s) from earlier notifications — run ./Act-3/demo-morning.sh to regenerate it"
+  fi
 else
-  fail "no open issue with the cluster-doctor label"
+  fail "no open argocd-deployment-failure issue — run ./Act-3/demo-morning.sh"
 fi
 
-PR=$(gh pr list -R "$REPO" --state open --json number,headRefName \
-     --jq '[.[] | select(.headRefName | startswith("fix/cluster-doctor"))][0].number' 2>/dev/null)
-if [ -n "$PR" ] && [ "$PR" != "null" ]; then
-  MERGEABLE=$(gh pr view "$PR" -R "$REPO" --json mergeable --jq '.mergeable' 2>/dev/null)
-  pass "open agent PR: #$PR (mergeable: ${MERGEABLE:-unknown})"
+PR=$(gh pr list -R "$REPO" --state open --json number --jq 'length' 2>/dev/null)
+if [ "${PR:-0}" -eq 0 ]; then
+  pass "no open pull requests (the agent opens one live)"
 else
-  fail "no open cluster-doctor PR"
+  fail "${PR} pull request(s) still open — close them before presenting"
 fi
 
 head_ "Argo CD UI"

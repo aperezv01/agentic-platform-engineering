@@ -132,11 +132,11 @@ case "${1:-}" in
     heal
     ;;
   --break)
-    git pull -q --rebase origin main
+    git pull -q --rebase --autostash origin main
     set_image "$GOOD" "$BAD" "demo: re-introduce order-service typo for keynote rehearsal" || true
     ;;
   *)
-    git pull -q --rebase origin main
+    git pull -q --rebase --autostash origin main
     # The notifications controller dedupes on an annotation keyed by the alert
     # condition, so an app that is already Degraded will not fire again. Drive
     # it back to Healthy and wait for Argo to observe that before re-breaking,
